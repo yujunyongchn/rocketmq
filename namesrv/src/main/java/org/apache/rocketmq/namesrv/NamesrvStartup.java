@@ -69,6 +69,7 @@ public class NamesrvStartup {
     }
 
     public static NamesrvController createNamesrvController(String[] args) throws IOException, JoranException {
+        //设置rocketmq的版本信息
         System.setProperty(RemotingCommand.REMOTING_VERSION_KEY, Integer.toString(MQVersion.CURRENT_VERSION));
         //PackageConflictDetect.detectFastjson();
 
@@ -81,13 +82,16 @@ public class NamesrvStartup {
 
         final NamesrvConfig namesrvConfig = new NamesrvConfig();
         final NettyServerConfig nettyServerConfig = new NettyServerConfig();
+        //设置namesrv监听端口
         nettyServerConfig.setListenPort(9876);
         if (commandLine.hasOption('c')) {
+            //sh mqbroker -c /usr/rocketmq/conf/2m-2s-async/broker-a.properties  >/dev/null 2>&1 & 解析配置文件
             String file = commandLine.getOptionValue('c');
             if (file != null) {
                 InputStream in = new BufferedInputStream(new FileInputStream(file));
                 properties = new Properties();
                 properties.load(in);
+                //装配namesrvConfig、nettyServerConfig
                 MixAll.properties2Object(properties, namesrvConfig);
                 MixAll.properties2Object(properties, nettyServerConfig);
 
@@ -100,13 +104,16 @@ public class NamesrvStartup {
 
         if (commandLine.hasOption('p')) {
             InternalLogger console = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_CONSOLE_NAME);
+            //打印namesrvConfig、nettyServerConfig属性值
             MixAll.printObjectProperties(console, namesrvConfig);
             MixAll.printObjectProperties(console, nettyServerConfig);
             System.exit(0);
         }
 
+        //解析命令行参数设置的相关的配置
         MixAll.properties2Object(ServerUtil.commandLine2Properties(commandLine), namesrvConfig);
 
+        //这里必须要设置rocketMq home路径,因为要加载conf配置文件
         if (null == namesrvConfig.getRocketmqHome()) {
             System.out.printf("Please set the %s variable in your environment to match the location of the RocketMQ installation%n", MixAll.ROCKETMQ_HOME_ENV);
             System.exit(-2);
@@ -116,7 +123,8 @@ public class NamesrvStartup {
         JoranConfigurator configurator = new JoranConfigurator();
         configurator.setContext(lc);
         lc.reset();
-        configurator.doConfigure(namesrvConfig.getRocketmqHome() + "/conf/logback_namesrv.xml");
+        //configurator.doConfigure(namesrvConfig.getRocketmqHome() + "/conf/logback_namesrv.xml");
+        configurator.doConfigure(namesrvConfig.getRocketmqHome() + "/distribution/conf/logback_namesrv.xml");
 
         log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
 
@@ -125,7 +133,7 @@ public class NamesrvStartup {
 
         final NamesrvController controller = new NamesrvController(namesrvConfig, nettyServerConfig);
 
-        // remember all configs to prevent discard
+        // remember all configs to prevent discard --> org.apache.rocketmq.common.Configuration.allConfigs
         controller.getConfiguration().registerConfig(properties);
 
         return controller;
@@ -143,6 +151,8 @@ public class NamesrvStartup {
             System.exit(-3);
         }
 
+        // 在jvm中增加一个关闭的钩子，当jvm关闭的时候，会执行系统中已经设置的所有通过方法addShutdownHook添加的钩子，当系统执行完这些钩子后，
+        // jvm才会关闭。所以这些钩子可以在jvm关闭的时候进行内存清理、对象销毁等操作。
         Runtime.getRuntime().addShutdownHook(new ShutdownHookThread(log, new Callable<Void>() {
             @Override
             public Void call() throws Exception {

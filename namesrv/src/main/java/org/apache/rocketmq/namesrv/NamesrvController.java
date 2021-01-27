@@ -63,8 +63,11 @@ public class NamesrvController {
     public NamesrvController(NamesrvConfig namesrvConfig, NettyServerConfig nettyServerConfig) {
         this.namesrvConfig = namesrvConfig;
         this.nettyServerConfig = nettyServerConfig;
+        // KV配置管理
         this.kvConfigManager = new KVConfigManager(this);
+        // 路由信息管理
         this.routeInfoManager = new RouteInfoManager();
+        // Broker连接事件处理服务
         this.brokerHousekeepingService = new BrokerHousekeepingService(this);
         this.configuration = new Configuration(
             log,
@@ -73,19 +76,28 @@ public class NamesrvController {
         this.configuration.setStorePathFromConfig(this.namesrvConfig, "configStorePath");
     }
 
-    public boolean initialize() {
+    public boolean  initialize() {
 
+        // load:加载配置文件，读取到内存的KVConfigManager.configTable中
+        // HashMap<String/* Namespace */, HashMap<String/* Key */, String/* Value */>>
         this.kvConfigManager.load();
 
+        // 初始化通信层
         this.remotingServer = new NettyRemotingServer(this.nettyServerConfig, this.brokerHousekeepingService);
 
+        // 初始化线程池（核心常驻线程、最大线程数量相等的线程池）
         this.remotingExecutor =
             Executors.newFixedThreadPool(nettyServerConfig.getServerWorkerThreads(), new ThreadFactoryImpl("RemotingExecutorThread_"));
 
+        // 此注册函数主要作用就是，定义RequestCode，用来作为netty的通信协议字段 即：如果broker通过netty发送通信请求，
+        // 其中请求信息中带有code == RequestCode.REGISTER_BROKER，那么在namesrv的netty端接收到该通信连接时候，
+        // 则对应调用namesrv的DefaultRequestProcessor类下面的registerBroker方法，从而完成broker向namesrv注册
         this.registerProcessor();
 
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
+            //初始延迟5秒，每间隔10s执行一次，默认移除2分钟内没有活动（心跳）的broker（需要移除brokerLiveTable、filterServerTable、brokerAddrTable、
+            // clusterAddrTable、topicQueueTable中关联的所有信息）
             @Override
             public void run() {
                 NamesrvController.this.routeInfoManager.scanNotActiveBroker();
@@ -94,6 +106,7 @@ public class NamesrvController {
 
         this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 
+            //延迟1分钟，每间隔10分钟执行一次，将configTable相关信息记录到日志文件中
             @Override
             public void run() {
                 NamesrvController.this.kvConfigManager.printAllPeriodically();

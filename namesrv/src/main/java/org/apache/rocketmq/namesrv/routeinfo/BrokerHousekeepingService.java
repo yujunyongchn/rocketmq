@@ -22,7 +22,12 @@ import org.apache.rocketmq.logging.InternalLogger;
 import org.apache.rocketmq.logging.InternalLoggerFactory;
 import org.apache.rocketmq.namesrv.NamesrvController;
 import org.apache.rocketmq.remoting.ChannelEventListener;
-
+/**
+ * 作用：处理Broker连接发生变化的服务。
+ * 创建时机：是由NamesrvController构造函数的时候生成的。
+ * 这个类实现了ChannelEventListener接口，除了onChannelConnect外，其余各个方法均委托给namesrvController的routeInfoManager的onChannelDestroy方法。
+ * 简单来说每一个broker与namesrv通过一个“通道”channel进行“沟通”。namesrv通过监测这些通道是否发生某些事件，去做出相应的变动。
+ */
 public class BrokerHousekeepingService implements ChannelEventListener {
     private static final InternalLogger log = InternalLoggerFactory.getLogger(LoggerName.NAMESRV_LOGGER_NAME);
     private final NamesrvController namesrvController;
@@ -35,16 +40,19 @@ public class BrokerHousekeepingService implements ChannelEventListener {
     public void onChannelConnect(String remoteAddr, Channel channel) {
     }
 
+    //监测close事件
     @Override
     public void onChannelClose(String remoteAddr, Channel channel) {
         this.namesrvController.getRouteInfoManager().onChannelDestroy(remoteAddr, channel);
     }
 
+    //监测异常事件
     @Override
     public void onChannelException(String remoteAddr, Channel channel) {
         this.namesrvController.getRouteInfoManager().onChannelDestroy(remoteAddr, channel);
     }
 
+    //监测闲置事件
     @Override
     public void onChannelIdle(String remoteAddr, Channel channel) {
         this.namesrvController.getRouteInfoManager().onChannelDestroy(remoteAddr, channel);

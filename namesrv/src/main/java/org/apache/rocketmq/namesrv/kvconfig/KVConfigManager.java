@@ -177,6 +177,7 @@ public class KVConfigManager {
 
                 {
                     log.info("configTable SIZE: {}", this.configTable.size());
+                    // HashMap<String/* Namespace */, HashMap<String/* Key */, String/* Value */>>
                     Iterator<Entry<String, HashMap<String, String>>> it =
                         this.configTable.entrySet().iterator();
                     while (it.hasNext()) {
